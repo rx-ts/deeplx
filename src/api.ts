@@ -1,4 +1,4 @@
-import _got from 'got'
+import { ApiMethod, fetchApi, interceptors } from 'x-fetch'
 
 import {
   extractTranslatedSentences,
@@ -10,36 +10,44 @@ import {
   generateTranslationRequestData,
   generateSplitSentencesRequestData,
 } from './generators.js'
-import { API_URL, AUTO, SourceLanguage, TargetLanguage } from './settings.js'
+import {
+  API_URL,
+  AUTO,
+  FormalityTone,
+  SourceLanguage,
+  TargetLanguage,
+} from './settings.js'
 import { abbreviateLanguage } from './utils.js'
 
-const got = _got.extend({
-  headers: {
-    accept: '*/*',
-    'accept-language': 'en-US;q=0.8,en;q=0.7',
-    authority: 'www2.deepl.com',
-    'content-type': 'application/json',
-    origin: 'https://www.deepl.com',
-    referer: 'https://www.deepl.com/translator',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-site',
-    'user-agent':
-      'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Mobile Safari/537.36',
-  },
-  stringifyJson(object: unknown) {
-    return JSON.stringify(object).replace('"method":"', () => {
-      const self = object as { id: number }
-      // eslint-disable-next-line @typescript-eslint/no-magic-numbers
-      if ((self.id + 3) % 13 === 0 || (self.id + 5) % 29 === 0) {
-        return '"method" : "'
-      }
-      return '"method": "'
-    })
-  },
+const DEFAULT_HEADERS = Object.entries({
+  accept: '*/*',
+  'accept-language': 'en-US;q=0.8,en;q=0.7',
+  authority: 'www2.deepl.com',
+  'content-type': 'application/json',
+  origin: 'https://www.deepl.com',
+  referer: 'https://www.deepl.com/translator',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-site',
+  'user-agent':
+    'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Mobile Safari/537.36',
 })
 
-export async function splitSentences(
+interceptors.use((req, next) => {
+  req.method = ApiMethod.POST
+  req.headers = DEFAULT_HEADERS
+  const body = req.body as ReturnType<typeof generateTranslationRequestData>
+  req.body = JSON.stringify(body).replace('"method":"', () => {
+    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
+    if ((body.id + 3) % 13 === 0 || (body.id + 5) % 29 === 0) {
+      return '"method" : "'
+    }
+    return '"method": "'
+  })
+  return next(req)
+})
+
+export function splitSentences(
   text: string,
   sourceLanguage?: SourceLanguage,
   identifier?: number,
@@ -49,11 +57,9 @@ export async function splitSentences(
     sourceLanguage,
     identifier,
   )
-  return await got
-    .post(API_URL, {
-      json: data,
-    })
-    .json<SplittedSentences>()
+  return fetchApi<SplittedSentences>(API_URL, {
+    body: data,
+  })
 }
 
 export async function splitIntoSentences(
@@ -72,7 +78,7 @@ export async function requestTranslation(
   sourceLanguage: SourceLanguage,
   identifier?: number,
   alternatives?: number,
-  formalityTone?: 'formal' | 'informal',
+  formalityTone?: FormalityTone,
 ) {
   const res = await splitSentences(text, sourceLanguage, identifier)
   const data = generateTranslationRequestData(
@@ -83,11 +89,9 @@ export async function requestTranslation(
     alternatives,
     formalityTone,
   )
-  return await got
-    .post(API_URL, {
-      json: data,
-    })
-    .json<TranslatedSentences>()
+  return fetchApi<TranslatedSentences>(API_URL, {
+    body: data,
+  })
 }
 
 export async function translate(
@@ -96,7 +100,7 @@ export async function translate(
   sourceLanguage?: SourceLanguage,
   identifier?: number,
   alternatives?: number,
-  formalityTone?: 'formal' | 'informal',
+  formalityTone?: FormalityTone,
 ): Promise<undefined>
 export async function translate(
   text: string,
@@ -104,7 +108,7 @@ export async function translate(
   sourceLanguage?: SourceLanguage,
   identifier?: number,
   alternatives?: number,
-  formalityTone?: 'formal' | 'informal',
+  formalityTone?: FormalityTone,
 ): Promise<string>
 export async function translate(
   text: string | null | undefined,
@@ -112,7 +116,7 @@ export async function translate(
   sourceLanguage?: SourceLanguage,
   identifier?: number,
   alternatives?: number,
-  formalityTone?: 'formal' | 'informal',
+  formalityTone?: FormalityTone,
 ): Promise<string | undefined>
 export async function translate(
   text: string | null | undefined,
@@ -120,7 +124,7 @@ export async function translate(
   sourceLanguage: SourceLanguage = AUTO,
   identifier?: number,
   alternatives?: number,
-  formalityTone?: 'formal' | 'informal',
+  formalityTone?: FormalityTone,
 ) {
   text = text?.trim()
   if (!text) {

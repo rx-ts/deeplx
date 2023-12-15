@@ -1,7 +1,8 @@
 {
   "name": "deepl-api",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
-    "got": "^11.8.5"
+    "node-fetch": "^3.3.2",
+    "x-fetch": "^0.1.3"
   }
 }
